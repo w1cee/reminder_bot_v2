@@ -1,0 +1,25 @@
+{
+  "day_status": {
+    "day_1": "ON",
+    "day_2": "ON",
+    "day_3": "ON",
+    "day_4": "ON",
+    "day_5": "ON",
+    "day_6": "OFF",
+    "day_7": "OFF"
+  },
+  "day_time": {
+    "day_1": "17:50:00",
+    "day_2": "17:50:00",
+    "day_3": "17:50:00",
+    "day_4": "17:50:00",
+    "day_5": "18:19:00",
+    "day_6": "12:00:00",
+    "day_7": "12:00:00"
+  },
+  "name": [
+    "@durov",
+    "@w1cee"
+  ],
+  "text": "Time to track time"
+}
