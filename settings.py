@@ -220,25 +220,23 @@ def set_time_register(message):
 
 def set_time_second_register(message):
     day_time = message.text
-    if type(day_time) is str and day_time[2] == ':' \
-            and len(day_time) == 5 \
-            and day_time[0] in str(list(range(3))) \
-            and day_time[3] in str(list(range(7))) \
-            and day_time[4] in str(list(range(10))):
+    if type(day_time) is str:
+        match = re.fullmatch(r'^(0[0-9]|1[0-9]|2[0-3]|[0-9]):[0-5][0-9]$', rf'{day_time}')
+        if match:
+            with open(json_file, 'rt', encoding='utf-8') as file:
+                data = json.load(file)
 
-        with open(json_file, 'rt', encoding='utf-8') as file:
-            data = json.load(file)
+            data['day_time'][f'day_{number_of_day}'] = day_time + ':00'
 
-        data['day_time'][f'day_{number_of_day}'] = day_time + ':00'
+            with open(json_file, 'wt', encoding='utf-8') as file:
+                json.dump(data, file, indent=2)
 
-        with open(json_file, 'wt', encoding='utf-8') as file:
-            json.dump(data, file, indent=2)
-
-        bot.send_message(message.chat.id, f'Время {number_of_day} day of the week changed: {day_time}')
-        statistic(message)
+            bot.send_message(message.chat.id,
+                             f'the time of the {number_of_day} day of the week is changed to: {day_time}')
+            statistic(message)
     else:
         bot.send_message(message.chat.id,
-                         'Enter the time in HH:MM format.\n'
+                         'Enter time in HH:MM format'
                          'Perhaps you are using the command incorrectly? /settime')
 
 
