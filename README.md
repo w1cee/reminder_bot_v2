@@ -1,5 +1,5 @@
 # python telegram bot for reminders
-The bot will send a reminder to the group (for example, track the time).
+The bot will send a reminder to the group (for example, track the time).  
 Access to the bot settings is allowed only to admins.
 ## how the bot works
 > settings.py
