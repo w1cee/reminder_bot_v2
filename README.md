@@ -8,7 +8,7 @@ Access to the bot settings is allowed only to admins (admin id must be written i
 > > > The bot is configured directly through the chat with the bot:
 > > > ![image](https://user-images.githubusercontent.com/93093228/163984995-43251a61-a3d7-4270-bd0b-fed0375e3bf1.png)
 > > > ![image](https://user-images.githubusercontent.com/93093228/163985157-695e2c21-1d5f-40b7-b281-db58e0323a41.png)
->
+> >
 > > reminder message  
 > > > Using admin-commands [/add, /del, /settext]
 > > > You can completely change the message that the bot should send to the group
