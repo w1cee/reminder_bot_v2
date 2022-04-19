@@ -2,12 +2,18 @@
 # bot by w1cee
 
 import json
+import time
 import telebot
+import pytz
+from datetime import datetime
+import re
+from threading import Thread
 
 TOKEN = 'TOKEN'
 bot = telebot.TeleBot(TOKEN)
-LIST_OF_ADMINS = []  # id of users which can change bot settings
-json_file = 'config.json'
+LIST_OF_ADMINS = ['admin-user id']
+group_id = 'group id'
+json_file = '/bot/config.json'
 
 
 @bot.message_handler(commands=['view'])
@@ -240,4 +246,34 @@ def set_time_second_register(message):
                          'Perhaps you are using the command incorrectly? /settime')
 
 
-bot.infinity_polling()
+def dd1():
+    bot.infinity_polling()
+
+
+def dd2():
+    while True:
+        file_check = json.load(open(json_file, 'r'))
+        now = datetime.now(pytz.timezone('Europe/Kiev'))
+        current_day = datetime.today().isoweekday()
+        if file_check['day_status'][f'day_{current_day}'] == 'ON':
+            if file_check['day_time'][f'day_{current_day}'] == now.strftime("%H:%M:%S"):
+                message_to_remind()
+        time.sleep(1)
+
+
+def message_to_remind():
+    data = json.load(open(json_file, 'r'))
+    updated_list = data['name']
+    updated_list = ' '.join(updated_list)
+    text_message = data['text']
+    text_message = ''.join(text_message)
+    bot.send_message(group_id,
+                     f'{text_message}\n{updated_list}')
+
+
+t1 = Thread(target=dd1)
+t2 = Thread(target=dd2)
+t1.start()
+t2.start()
+t1.join()
+t2.join()
