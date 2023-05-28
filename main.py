@@ -1,279 +1,442 @@
 # -*- coding: utf-8 -*-
-# bot by w1cee
-
+# Author: w1cee
+import re
+import os
+import glob
 import json
 import time
-import telebot
 import pytz
+import random
+import telebot
 from datetime import datetime
-import re
 from threading import Thread
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from bot_config import BOT_TOKEN
 
-TOKEN = 'TOKEN'
+TOKEN = BOT_TOKEN
 bot = telebot.TeleBot(TOKEN)
-LIST_OF_ADMINS = ['admin-user id']
-group_id = 'group id'
-json_file = '/bot/config.json'
+LIST_OF_ADMINS = []
+GROUP_ID = 0
+config_file = 'config.json'
+lang = {}
+lang_dir_path = 'lang/'
+default_language = {
+    "lang_name": "English (default)",
+    "reminder_text": "Text to remind:",
+    "list_of_users": "List of users:",
+    "day_status": "Day status on/off:",
+    "day_time": "Time for reminder",
+    "not_admin": "You are not allowed to use this command.",
+    "incorrect_using": "Incorrect data format. The command was not executed.",
+    "captcha_fail": "You did not pass the captcha, please try again.",
+    "set_text": "Send a new reminder text.",
+    "add_user": "Send me the @username of the person you want to add to the list.",
+    "del_user": "Send me the @username of someone to be removed from the list.",
+    "day_on": "Send me the number of the day of the week you want to be reminded.",
+    "day_off": "Send me the number of the day of the week you don't want to be reminded.",
+    "set_time": "Send me the number of the day of the week you want to change the reminder time.",
+    "time_format": "Send me the time in HH:MM format.",
+    "add_admin": "Send me the @username of the new admin.",
+    "del_admin": "Send me the @username of the admin to be removed.",
+    "solve_captcha": "Solve the captcha to continue.",
+    "admin_delete_yourself": "You cannot deprive yourself of administrator rights.",
+    "user_not_in_list": "This user is not in the list.",
+    "send_id_of_group": "Send me id of new group.",
+    "for_admins": "For admins",
+    "group_id": "Group id",
+    "admins": "Admins",
+    "current_lang": "Current language",
+    "available_lang": "Available languages",
+    "timezone": "Time zone",
+    "choose_timezone": "Send me a new timezone.\nThe current list of time zones is in this file:\nhttps://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568",
+    "choose_timezone_error": "Please enter correct time zone.",
+    "help": "/add add user to list\n/del remove the user from the list\n/day_on turn on the reminder for the day of the week\n/day_off turn off the reminder for the day of the week\n/set_time set the time for the day of the week\n/set_text set reminder text\n/add_admin add administrator\n/del_admin remove administrator\n/change_group change group\n/view current bot settings\n/help list of commands"
+}
 
 
 @bot.message_handler(commands=['view'])
 def statistic(message):
-    data = json.load(open(json_file, 'r'))
-    list_users = data['name']
-    list_users = ' '.join(list_users)
+    with open(config_file, 'rt', encoding='utf-8') as file:
+        data = json.load(file)
+    list_users = ', '.join(data['workers'])
     remind_message = data['text']
-    remind_message = ''.join(remind_message)
-    day_status = data['day_status']
-    day_time = data['day_time']
-    bot.send_message(message.chat.id, f'Reminder text:\n'
-                                      f'{remind_message}\n'
-                                      f'\n'
-                                      f'List of users: {list_users}\n'
-                                      f'\n'
-                                      f'Status of days on/off: {day_status}\n'
-                                      f'\n'
-                                      f'Time of every day: {day_time}'
+    day_status = [f'{day}: {status}' for day, status in data['day_status'].items()]
+    day_status = '\n'.join(day_status)
+    day_time = [f'{day}: {time}' for day, time in data['day_time'].items()]
+    day_time = '\n'.join(day_time)
+    admins = ', '.join(data['admins'])
+    available_lang = ', '.join(data['available_lang'])
+    bot.send_message(message.chat.id, f"{lang['reminder_text']}\n"
+                                      f"{remind_message}\n"
+                                      f"\n"
+                                      f"{lang['list_of_users']} {list_users}\n"
+                                      f"\n"
+                                      f"{lang['day_status']}\n{day_status}\n"
+                                      f"\n"
+                                      f"{lang['day_time']}\n{day_time}"
                      )
+    if f'@{message.from_user.username}' in LIST_OF_ADMINS:
+        bot.send_message(message.chat.id, f"{lang['for_admins']}:\n"
+                                          f"{lang['group_id']}: {GROUP_ID}\n"
+                                          f"{lang['admins']}: {admins}\n"
+                                          f"{lang['current_lang']}: {lang['lang_name']}\n"
+                                          f"{lang['available_lang']}: {available_lang}\n"
+                                          f"{lang['timezone']}: {data['timezone']}")
+
+
+def message_to_remind():
+    with open(config_file, 'rt', encoding='utf-8') as file:
+        data = json.load(file)
+    updated_list = ' '.join(data['workers'])
+    text_message = ''.join(data['text'])
+    bot.send_message(GROUP_ID,
+                     f'{text_message}\n{updated_list}')
 
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
-    bot.send_message(message.chat.id, '/add add user to list\n'
-                                      '/del delete user from list\n'
-                                      '/day_on enable reminder for the day of the week\n'
-                                      '/day_off turn off the reminder for the day of the week\n'
-                                      '/settime set the time for the day of the week\n'
-                                      '/settext set reminder text\n'
-                                      '/view current bot settings'
-                     )
+    bot.send_message(message.chat.id, lang['help'])
 
 
-@bot.message_handler(commands=['settext'])
+def admin_check(message):
+    if f'@{message.from_user.username}' in LIST_OF_ADMINS:
+        return True
+    bot.send_message(message.chat.id, lang['not_admin'])
+    return False
+
+
+@bot.message_handler(commands=['set_text'])
 def text(message):
-    if message.from_user.id in LIST_OF_ADMINS:
-        msg = bot.send_message(message.chat.id, 'Send a new reminder text:')
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['set_text'])
         bot.register_next_step_handler(msg, text_register)
-    else:
-        bot.send_message(message.chat.id, 'You are not an admin, you will not be able to change the settings of the bot'
-                         )
 
 
 def text_register(message):
     new_text = message.text
-
-    if type(new_text) is str:
-        with open(json_file, 'rt', encoding='utf-8') as file:
+    if isinstance(new_text, str):
+        with open(config_file, 'rt', encoding='utf-8') as file:
             data = json.load(file)
-
         data['text'] = new_text
-
-        with open(json_file, 'wt') as file:
-            json.dump(data, file, sort_keys=False, indent=2)
-
-        bot.send_message(message.chat.id, 'Message text successfully changed')
+        with open(config_file, 'wt') as file:
+            json.dump(data, file, indent=2)
+        statistic(message)
     else:
-        bot.send_message(message.chat.id, 'Perhaps you are using the command incorrectly?')
+        bot.send_message(message.chat.id, lang['incorrect_using'])
 
 
 @bot.message_handler(commands=['add'])
 def add(message):
-    if message.from_user.id in LIST_OF_ADMINS:
-        msg = bot.send_message(message.chat.id, 'Send the @nickname of the person you want to add to the list:')
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['add_user'])
         bot.register_next_step_handler(msg, add_register)
-    else:
-        bot.send_message(message.chat.id, 'You are not an admin, you will not be able to change the settings of the bot'
-                         )
 
 
 def add_register(message):
     add_worker = message.text
-
-    if type(add_worker) is str and add_worker.startswith('@') and len(add_worker) > 1:
-        with open(json_file, 'rt', encoding='utf-8') as file:
+    if isinstance(add_worker, str) and add_worker.startswith('@'):
+        with open(config_file, 'rt', encoding='utf-8') as file:
             data = json.load(file)
-        with open(json_file, 'wt', encoding='utf-8') as file:
-            data['name'].append(add_worker)
+        with open(config_file, 'wt', encoding='utf-8') as file:
+            data['workers'].append(add_worker)
             json.dump(data, file, indent=2)
         statistic(message)
-
     else:
-        bot.send_message(message.chat.id,
-                         'Write @username /add')
+        bot.send_message(message.chat.id, lang['incorrect_using'])
 
 
 @bot.message_handler(commands=['del'])
 def delete(message):
-    if message.from_user.id in LIST_OF_ADMINS:
-        msg = bot.send_message(message.chat.id, 'Send the @nickname of the person you want to remove from the list:')
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['del_user'])
         bot.register_next_step_handler(msg, delete_register)
-    else:
-        bot.send_message(message.chat.id, 'You are not an admin, you will not be able to change the settings of the bot'
-                         )
 
 
 def delete_register(message):
     delete_worker = message.text
-
-    with open(json_file, 'rt', encoding='utf-8') as file:
+    with open(config_file, 'rt', encoding='utf-8') as file:
         data = json.load(file)
-
-    if type(delete_worker) is str and delete_worker in data["name"]:
-        with open(json_file, 'wt', encoding='utf-8') as file:
-            data['name'].remove(delete_worker)
+    if delete_worker in data['workers']:
+        with open(config_file, 'wt', encoding='utf-8') as file:
+            data['workers'].remove(delete_worker)
             json.dump(data, file, indent=2)
         statistic(message)
-
-    elif delete_worker not in data["name"]:
-        bot.send_message(message.chat.id,
-                         'Are you sure this @nickname is on the list?\n'
-                         'Perhaps you are using the command incorrectly?')
     else:
-        bot.send_message(message.chat.id,
-                         'An unexpected error occurred, please try the command again. /del')
+        bot.send_message(message.chat.id, lang['user_not_in_list'])
 
 
 @bot.message_handler(commands=['day_on'])
 def day_on(message):
-    if message.from_user.id in LIST_OF_ADMINS:
-        msg = bot.send_message(message.chat.id, 'Day of the week number:')
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['day_on'])
         bot.register_next_step_handler(msg, day_on_register)
-    else:
-        bot.send_message(message.chat.id, 'You are not an admin, you will not be able to change the settings of the bot'
-                         )
 
 
 def day_on_register(message):
     number_of_day_on = message.text
-
-    if number_of_day_on in str(list(range(8))) and type(number_of_day_on) is str:
-        with open(json_file, 'rt', encoding='utf-8') as file:
+    if number_of_day_on in [str(x) for x in range(8)]:
+        with open(config_file, 'rt', encoding='utf-8') as file:
             data = json.load(file)
-
         data['day_status'][f'day_{number_of_day_on}'] = "ON"
-
-        with open(json_file, "wt", encoding='utf-8') as file:
+        with open(config_file, "wt", encoding='utf-8') as file:
             json.dump(data, file, indent=2)
-        bot.send_message(message.chat.id, 'Now a reminder will come on that day.')
         statistic(message)
-
-    elif number_of_day_on not in str(list(range(8))):
-        bot.send_message(message.chat.id,
-                         'There are 7 days in a week, try using the command again.\n'
-                         'Perhaps you are using the command incorrectly? /day_on')
-
     else:
-        bot.send_message(message.chat.id, 'An unexpected error occurred, please try the command again. /day_on')
+        bot.send_message(message.chat.id, lang['incorrect_using'])
 
 
 @bot.message_handler(commands=['day_off'])
 def day_off(message):
-    if message.from_user.id in LIST_OF_ADMINS:
-        msg = bot.send_message(message.chat.id, 'Day of the week number:')
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['day_off'])
         bot.register_next_step_handler(msg, day_off_register)
-    else:
-        bot.send_message(message.chat.id, 'You are not an admin, you will not be able to change the settings of the bot'
-                         )
 
 
 def day_off_register(message):
     number_of_day_off = message.text
-
-    if number_of_day_off in str(list(range(8))) and type(number_of_day_off) is str:
-        with open(json_file, 'rt', encoding='utf-8') as file:
+    if number_of_day_off in [str(x) for x in range(8)]:
+        with open(config_file, 'rt', encoding='utf-8') as file:
             data = json.load(file)
-
         data['day_status'][f'day_{number_of_day_off}'] = 'OFF'
-
-        with open(json_file, 'wt', encoding='utf-8') as file:
+        with open(config_file, 'wt', encoding='utf-8') as file:
             json.dump(data, file, indent=2)
-        bot.send_message(message.chat.id, 'Now on this day there will be no reminder.')
         statistic(message)
 
-    elif number_of_day_off not in str(list(range(8))):
-        bot.send_message(message.chat.id,
-                         'There are 7 days in a week, try using the command again.\n'
-                         'Perhaps you are using the command incorrectly? /day_off')
-
     else:
-        bot.send_message(message.chat.id, 'An unexpected error occurred, please try the command again. /day_off')
+        bot.send_message(message.chat.id, lang['incorrect_using'])
 
 
-@bot.message_handler(commands=['settime'])
+@bot.message_handler(commands=['set_time'])
 def set_time(message):
-    if message.from_user.id in LIST_OF_ADMINS:
-        msg = bot.send_message(message.chat.id, 'Day of the week number:')
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['set_time'])
         bot.register_next_step_handler(msg, set_time_register)
-    else:
-        bot.send_message(message.chat.id, 'You are not an admin, you will not be able to change the settings of the bot'
-                         )
 
 
-number_of_day = 0  # variable to pass to another function
+number_of_day = 0
 
 
 def set_time_register(message):
     global number_of_day
     number_of_day = message.text
-    if number_of_day in str(list(range(8))) and type(number_of_day) is str:
-        msg = bot.send_message(message.chat.id, 'Enter time in HH:MM format')
+    if number_of_day in [str(x) for x in range(8)]:
+        msg = bot.send_message(message.chat.id, lang['time_format'])
         bot.register_next_step_handler(msg, set_time_second_register)
-        return number_of_day
     else:
-        bot.send_message(message.chat.id,
-                         'There are 7 days in a week, try using the command again.\n'
-                         'Perhaps you are using the command incorrectly? /settime')
+        bot.send_message(message.chat.id, lang['incorrect_using'])
 
 
 def set_time_second_register(message):
-    day_time = message.text
-    if type(day_time) is str:
-        match = re.fullmatch(r'^(0[0-9]|1[0-9]|2[0-3]|[0-9]):[0-5][0-9]$', rf'{day_time}')
-        if match:
-            with open(json_file, 'rt', encoding='utf-8') as file:
+    if day_time := message.text:
+        if match := re.fullmatch(
+                r'^([0-1]?[0-9]|[2][0-3]):([0-5][0-9])$', rf'{day_time}'
+        ):
+            with open(config_file, 'rt', encoding='utf-8') as file:
                 data = json.load(file)
-
-            data['day_time'][f'day_{number_of_day}'] = day_time + ':00'
-
-            with open(json_file, 'wt', encoding='utf-8') as file:
+            data['day_time'][f'day_{number_of_day}'] = f'{day_time}:00'
+            with open(config_file, 'wt', encoding='utf-8') as file:
                 json.dump(data, file, indent=2)
-
-            bot.send_message(message.chat.id,
-                             f'the time of the {number_of_day} day of the week is changed to: {day_time}')
             statistic(message)
+        else:
+            bot.send_message(message.chat.id, lang['incorrect_using'])
     else:
-        bot.send_message(message.chat.id,
-                         'Enter time in HH:MM format'
-                         'Perhaps you are using the command incorrectly? /settime')
+        bot.send_message(message.chat.id, lang['incorrect_using'])
 
 
-def dd1():
+@bot.message_handler(commands=['add_admin'])
+def add_admin(message):
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['add_admin'])
+        bot.register_next_step_handler(msg, add_admin_register)
+
+
+def add_admin_register(message):
+    admin_username = message.text
+    if isinstance(admin_username, str) and admin_username.startswith('@'):
+        with open(config_file, 'rt', encoding='utf-8') as file:
+            data = json.load(file)
+        data['admins'].append(admin_username)
+        with open(config_file, 'wt', encoding='utf-8') as file:
+            json.dump(data, file, indent=2)
+        statistic(message)
+    else:
+        bot.send_message(message.chat.id, lang['incorrect_using'])
+
+
+@bot.message_handler(commands=['del_admin'])
+def del_admin(message):
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['del_admin'])
+        bot.register_next_step_handler(msg, del_admin_register)
+
+
+def del_admin_register(message):
+    global del_admin_username, num_sum
+    del_admin_username = message.text
+    if isinstance(del_admin_username, str) and del_admin_username.startswith('@'):
+        with open(config_file, 'rt', encoding='utf-8') as file:
+            data = json.load(file)
+        admins = data['admins']
+        if del_admin_username in admins and del_admin_username != f'@{message.from_user.username}':
+            num1, num2 = random.randint(1, 100), random.randint(1, 100)
+            num_sum = num1 + num2
+            msg = bot.send_message(message.chat.id, f"{lang['solve_captcha']}\n"
+                                                    f'{num1}+{num2}')
+            bot.register_next_step_handler(msg, del_admin_confirmation)
+        elif del_admin_username == f'@{message.from_user.username}':
+            bot.send_message(message.chat.id, lang['admin_delete_yourself'])
+        else:
+            bot.send_message(message.chat.id, lang['user_not_in_list'])
+    else:
+        bot.send_message(message.chat.id, lang['incorrect_using'])
+
+
+num_sum = 0
+del_admin_username = 0
+
+
+def del_admin_confirmation(message):
+    try:
+        if int(message.text) == num_sum:
+            with open(config_file, 'rt', encoding='utf-8') as file:
+                data = json.load(file)
+            admins = data['admins']
+            admins.remove(del_admin_username)
+            data['admins'] = admins
+            with open(config_file, 'wt', encoding='utf-8') as file:
+                json.dump(data, file, indent=2)
+            statistic(message)
+        else:
+            bot.send_message(message.chat.id, lang['captcha_fail'])
+    except Exception:
+        bot.send_message(message.chat.id, lang['incorrect_using'])
+
+
+@bot.message_handler(commands=['change_group'])
+def change_group(message):
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['send_id_of_group'])
+        bot.register_next_step_handler(msg, change_group_register)
+
+
+def change_group_register(message):
+    global GROUP_ID
+    try:
+        with open(config_file, 'rt', encoding='utf-8') as file:
+            data = json.load(file)
+        group_id = int(message.text)
+        data['group_id'] = group_id
+        GROUP_ID = group_id
+        for day in data['day_status']:
+            data['day_status'][day] = 'OFF'
+        for day in data['day_time']:
+            data['day_time'][day] = '17:50:00'
+        with open(config_file, 'wt', encoding='utf-8') as file:
+            json.dump(data, file, indent=2)
+        statistic(message)
+    except Exception:
+        bot.send_message(message.chat.id, lang['incorrect_using'])
+
+
+@bot.message_handler(commands=['set_lang'])
+def choose_language(message):
+    if json_files := [
+        f for f in os.listdir(lang_dir_path) if f.endswith('.json')
+    ]:
+        markup = InlineKeyboardMarkup()
+        markup.row_width = 1
+        for filename in glob.iglob(f'{lang_dir_path}*.json', recursive=True):
+            filename = filename[5:]
+            with open(f'{lang_dir_path}{filename}', 'rt', encoding='utf-8') as file:
+                data = json.load(file)
+                markup.add(InlineKeyboardButton(data['lang_name'], callback_data=filename))
+        bot.send_message(message.chat.id, 'Choose your language', reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, 'Only default language is available.')
+
+
+@bot.message_handler(commands=['change_timezone'])
+def change_timezone(message):
+    if admin_check(message):
+        msg = bot.send_message(message.chat.id, lang['choose_timezone'])
+        bot.register_next_step_handler(msg, change_timezone_register)
+
+
+def change_timezone_register(message):
+    if message.text in pytz.all_timezones:
+        with open(config_file, 'rt', encoding='utf-8') as file:
+            data = json.load(file)
+        with open(config_file, 'wt', encoding='utf-8') as file:
+            data['timezone'] = message.text
+            json.dump(data, file, indent=2)
+        statistic(message)
+    else:
+        bot.send_message(message.chat.id, lang['choose_timezone_error'])
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    with open(config_file, 'rt', encoding='utf-8') as file:
+        data = json.load(file)
+    bot.answer_callback_query(call.id, '✅')
+    data['lang_file'] = call.data
+    with open(config_file, 'wt', encoding='utf-8') as file:
+        json.dump(data, file, indent=2)
+
+
+def telegram_bot_polling():
     bot.infinity_polling()
 
 
-def dd2():
+def variables_updater():
+    global LIST_OF_ADMINS, GROUP_ID, lang
+    json_files = [f for f in os.listdir(lang_dir_path) if f.endswith('.json')]
+    with open(config_file, 'rt', encoding='utf-8') as file:
+        data = json.load(file)
+    if not json_files:
+        data['lang_file'] = 'default_language'
+        lang = default_language
+    elif data['lang_file'] == 'default_language':
+        lang = default_language
+    else:
+        try:
+            with open(f"{lang_dir_path}{data['lang_file']}", 'rt', encoding='utf-8') as file:
+                lang = json.load(file)
+        except FileNotFoundError:
+            data['lang_file'] = 'default_language'
+            lang = default_language
+    available_lang = []
+    for lang_file in json_files:
+        with open(f"{lang_dir_path}{lang_file}", 'rt', encoding='utf-8') as file:
+            lang_file = json.load(file)
+            available_lang.append(lang_file['lang_name'])
+    data['available_lang'] = available_lang
+    if data['timezone'] not in pytz.all_timezones:
+        data['timezone'] = 'UTC'
+    with open(config_file, 'wt', encoding='utf-8') as file:
+        json.dump(data, file, indent=2)
+    LIST_OF_ADMINS = data['admins']
+    GROUP_ID = data['group_id']
+
+
+def remind_time_checker():
     while True:
-        file_check = json.load(open(json_file, 'r'))
+        variables_updater()
+        with open(config_file, 'rt', encoding='utf-8') as file:
+            data = json.load(file)
         now = datetime.now(pytz.timezone('Europe/Kiev'))
-        current_day = datetime.today().isoweekday()
-        if file_check['day_status'][f'day_{current_day}'] == 'ON':
-            if file_check['day_time'][f'day_{current_day}'] == now.strftime("%H:%M:%S"):
-                message_to_remind()
+        current_day = datetime.now().isoweekday()
+        if data['day_status'][f'day_{current_day}'] == 'ON' and data['day_time'][f'day_{current_day}'] \
+                == now.strftime("%H:%M:%S"):
+            message_to_remind()
         time.sleep(1)
 
 
-def message_to_remind():
-    data = json.load(open(json_file, 'r'))
-    updated_list = data['name']
-    updated_list = ' '.join(updated_list)
-    text_message = data['text']
-    text_message = ''.join(text_message)
-    bot.send_message(group_id,
-                     f'{text_message}\n{updated_list}')
+telegram_bot_polling = Thread(target=telegram_bot_polling)
+remind_time_checker = Thread(target=remind_time_checker)
 
+telegram_bot_polling.start()
+remind_time_checker.start()
 
-t1 = Thread(target=dd1)
-t2 = Thread(target=dd2)
-t1.start()
-t2.start()
-t1.join()
-t2.join()
+telegram_bot_polling.join()
+remind_time_checker.join()
