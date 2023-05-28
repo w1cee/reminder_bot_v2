@@ -42,7 +42,7 @@ Here are some example commands you can use with ReminderBot:
   receive additional information, such as group ID and time zone, in a separate message.
 - `/help`: Use this command to get instructions on how to use ReminderBot effectively.
 
-### Commands admins
+### Commands for admins
 
 - `/set_text`: With this command, you can customize the text and language settings of ReminderBot to fit the preferences
   of your group.
