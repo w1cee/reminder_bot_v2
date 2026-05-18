@@ -1,63 +1,405 @@
-# ReminderBot
+# ⏰ reminder_bot_v2
 
-ReminderBot is a versatile bot designed to send reminders to a group at specified times on any day of the week. This bot
-is built to help users stay organized and never miss an important task or event.
+> Advanced reminder bot with multi-language support
 
-## Features
+A Telegram bot for setting reminders on specific days and times with admin controls, captcha verification, and multi-language support (English, Russian, Ukrainian).
 
-- **Flexible Scheduling**: ReminderBot allows you to schedule reminders at any time and on any day of the week. Whether
-  it's a one-time reminder or a recurring event, this bot has got you covered.
-- **Group Notifications**: You can configure ReminderBot to send reminders to a specific group or channel. This ensures
-  that everyone in the group receives the necessary reminders and stays updated.
-- **Timezone Support**: ReminderBot takes into account different time zones, allowing you to set reminders based on the
-  local time of each group member.
-- **Customizable Messages**: You have the freedom to customize the content of your reminders. Include important details,
-  instructions, or any other relevant information to make sure everyone is well-informed.
-- **Language Selection**: ReminderBot supports multiple languages, allowing you to choose the language that suits your
-  group's preferences. You can easily switch between available languages using a simple command.
-- **Custom Language Support**: In addition to the provided languages, ReminderBot enables you to add your own language
-  translations. This feature ensures that the bot can adapt to your specific language requirements and improve
-  communication within your group.
+## ✨ Features
 
-## Getting Started
+- **Daily reminders** — Set reminders for specific days and times
+- **Admin controls** — Manage users, reminders, and settings
+- **User management** — Add/remove users from reminder list
+- **Day control** — Enable/disable reminders for specific days of the week
+- **Time management** — Set different times for each day
+- **Multi-language** — Supports English, Russian, and Ukrainian
+- **Timezone support** — UTC and custom timezone handling
+- **Captcha verification** — Admin-level protection
+- **Group/Private** — Works in group chats with admin controls
 
-To add ReminderBot to your group, follow these simple steps:
+## 🚀 Quick Start
 
-1. Add your @username to admin list in config.json
-2. Create your own bot with @BotFather and set your token in bot_config.py
-3. Invite your ReminderBot to your desired group.
-4. Once added, you can configure the bot by sending it commands in the private messages.
-5. Specify the time and day of the week when you want the reminder to be sent using commands `/day_on` `/day_off`
-   and `/set_time`
-6. Customize the content of your reminder by using `/set_text` command
-7. ReminderBot will confirm the scheduling and start sending reminders according to your instructions.
+### Prerequisites
+- Python 3.7+
+- Telegram Bot Token
+- pyTelegramBotAPI
+- pytz (timezone support)
 
-## Usage
+### Installation
 
-Here are some example commands you can use with ReminderBot:
+```bash
+git clone https://github.com/w1cee/reminder_bot_v2.git
+cd reminder_bot_v2
+pip install -r requirements.txt
+```
 
-### Commands for everyone
+### Configuration
 
-- `/view`: This command allows you to see current reminder text, list of users to mention, day statuses and time. Admins
-  receive additional information, such as group ID and time zone, in a separate message.
-- `/help`: Use this command to get instructions on how to use ReminderBot effectively.
+1. Edit `bot_config.py` and add your bot token:
 
-### Commands for admins
+```python
+BOT_TOKEN = 'YOUR_BOT_TOKEN'
+```
 
-- `/set_text`: With this command, you can customize the text and language settings of ReminderBot to fit the preferences
-  of your group.
-- `/day_on`: Use this command to enable reminders for a specific day of the week.
-- `/day_off`: This command disables reminders for a specific day of the week.
-- `/set_time`: Use this command to set the time for reminders for a specific day.
-- `/add`: This command adds a user's username (@username) to the mention list, ensuring they receive reminders.
-- `/del`: Use this command to remove a user's username (@username) from the notification list, stopping them from
-  receiving reminders.
-- `/add_admin`: This command adds an administrator.
-- `/del_admin`: This command deletes an administrator. Admin can't delete himself, and can't delete everyone but
-  himself, there will always be two admins.
-- `/change_group`: This command allows you to change the group where ReminderBot sends reminders.
-- `/set_lang`: Use this command to change the language of ReminderBot's messages and responses.
-- `/change_timezone`: This command allows you to change the time zone so that your reminders are always on time.
+2. Edit `config.json` for default settings:
 
-### Add new languages
-To add new languages you need to put *.json file into the lang folder, 
+```json
+{
+  "admins": ["@your_username"],
+  "workers": ["@target_username"],
+  "group_id": 0,
+  "timezone": "UTC",
+  "lang_file": "en.json"
+}
+```
+
+3. Run the bot:
+
+```bash
+python main.py
+```
+
+## 💻 How to Use
+
+### For Users
+
+```
+User: /start
+Bot: [Menu options]
+
+User: /reminder_text
+Bot: Send a new reminder text
+User: "Don't forget to check emails"
+
+User: /day_on
+Bot: Send me the number of the day (1=Monday, 7=Sunday)
+User: 1
+Bot: Reminder enabled for Monday
+```
+
+### For Admins
+
+```
+User: /admin
+Bot: [Admin menu]
+
+# Add user to reminder list
+User: /add_user
+Bot: Send me @username
+User: @john_doe
+
+# Set reminder time
+User: /set_time
+Bot: Send me day number (1-7)
+Bot: Send me time in HH:MM format
+User: 1
+User: 09:00
+
+# Manage admins
+User: /add_admin
+Bot: Send me @username of new admin
+```
+
+## 🛠️ Tech Stack
+
+- **Language**: Python 3.7+
+- **Bot Framework**: pyTelegramBotAPI
+- **Timezone**: pytz
+- **Configuration**: JSON files
+- **Languages**: JSON language files (en.json, ru.json, uk.json)
+
+## 📚 Code Structure
+
+### Main Components
+
+```python
+# Core imports
+import telebot
+import json
+import pytz
+from datetime import datetime
+from threading import Thread
+from bot_config import BOT_TOKEN
+
+# Initialize bot
+TOKEN = BOT_TOKEN
+bot = telebot.TeleBot(TOKEN)
+
+# Configuration
+LIST_OF_ADMINS = []
+GROUP_ID = 0
+config_file = 'config.json'
+lang_dir_path = 'lang/'
+```
+
+### Configuration Structure
+
+#### `config.json`
+```json
+{
+  "day_status": {
+    "day_1": "OFF",  // Monday off
+    "day_2": "ON",   // Tuesday on
+    // ...
+    "day_7": "OFF"   // Sunday off
+  },
+  "day_time": {
+    "day_1": "09:00:00",
+    "day_2": "14:30:00",
+    // ...
+  },
+  "workers": ["@username1", "@username2"],  // Reminder recipients
+  "text": "",  // Reminder text
+  "admins": ["@admin1"],  // Bot admins
+  "group_id": 0,  // Group chat ID
+  "lang_file": "en.json",  // Current language
+  "available_lang": ["English", "Русский", "Українська"],
+  "timezone": "UTC"
+}
+```
+
+### Language Files
+
+Each language has a JSON file in `lang/` folder:
+
+**lang/en.json:**
+```json
+{
+  "lang_name": "English (default)",
+  "reminder_text": "Text to remind:",
+  "day_on": "Enable reminder for day:",
+  "day_off": "Disable reminder for day:",
+  "day_time": "Time for reminder",
+  "not_admin": "You are not allowed to use this command.",
+  ...
+}
+```
+
+Same structure for `ru.json` (Russian) and `uk.json` (Ukrainian).
+
+## 📅 Day Numbering
+
+```
+1 = Monday (Пн)
+2 = Tuesday (Вт)
+3 = Wednesday (Ср)
+4 = Thursday (Чт)
+5 = Friday (Пт)
+6 = Saturday (Сб)
+7 = Sunday (Вс)
+```
+
+## 🔌 Key Features Implementation
+
+### 1. Day Management
+
+```python
+# Enable/disable reminders for specific day
+day_status = {
+    "day_1": "ON",   # Monday enabled
+    "day_2": "OFF",  # Tuesday disabled
+    ...
+}
+```
+
+### 2. Time Management
+
+```python
+# Set different times for each day
+day_time = {
+    "day_1": "09:00:00",   # 9 AM on Monday
+    "day_2": "14:30:00",   # 2:30 PM on Tuesday
+    ...
+}
+```
+
+### 3. User Management
+
+```python
+# Add/remove users from reminder list
+workers = ["@user1", "@user2", "@user3"]
+
+# Admin-only commands can:
+# - Add users to list
+# - Remove users from list
+# - View current list
+```
+
+### 4. Admin Controls
+
+```python
+LIST_OF_ADMINS = ["@admin1", "@admin2"]
+
+# Admin-only commands:
+/admin              # Admin menu
+/add_user          # Add user to recipients
+/del_user          # Remove user
+/set_text          # Set reminder text
+/set_time          # Set reminder time
+/add_admin         # Make user admin
+/del_admin         # Remove admin
+/list_users        # View recipient list
+/list_admins       # View admin list
+/lang              # Change language
+/set_timezone      # Change timezone
+```
+
+### 5. Captcha Verification
+
+```python
+# Admins must solve captcha for certain operations
+"solve_captcha": "Solve the captcha to continue."
+"captcha_fail": "You did not pass the captcha, please try again."
+```
+
+### 6. Multi-Language Support
+
+```python
+# Load language file
+lang_file = 'lang/en.json'  # English
+lang_file = 'lang/ru.json'  # Russian
+lang_file = 'lang/uk.json'  # Ukrainian
+
+# Use language strings
+bot.send_message(chat_id, lang["reminder_text"])
+```
+
+### 7. Timezone Support
+
+```python
+import pytz
+
+# Set timezone
+timezone = pytz.timezone('UTC')
+timezone = pytz.timezone('Europe/Kyiv')
+timezone = pytz.timezone('US/Eastern')
+
+# Get current time in timezone
+now = datetime.now(timezone)
+```
+
+## 📁 File Structure
+
+```
+reminder_bot_v2/
+├── main.py              # Main bot script
+├── bot_config.py        # Bot token configuration
+├── config.json          # Bot settings and configuration
+├── lang/                # Language files
+│   ├── en.json         # English
+│   ├── ru.json         # Russian
+│   └── uk.json         # Ukrainian
+├── requirements.txt     # Python dependencies
+├── LICENSE
+└── README.md
+```
+
+## 📝 Requirements
+
+```
+pytz
+pyTelegramBotAPI
+```
+
+## 🐛 Troubleshooting
+
+### Bot not starting
+```
+BotException: A request to the Telegram API was unsuccessful. Error code: 401
+```
+- Verify bot token is correct
+- Token must be copied completely without spaces
+- Bot token may have expired
+
+### Reminders not sending
+- Verify `day_status` for that day is "ON"
+- Check `day_time` is set correctly
+- Ensure bot is running (no crashes)
+- Check if users are in `workers` list
+
+### Group chat not working
+- Set `group_id` in config.json
+- Add bot to group as admin
+- Verify group ID is correct (negative number for groups)
+
+### Language not changing
+- Verify language file exists in `lang/` folder
+- Check JSON syntax in language files
+- Restart bot after changing language
+
+### Timezone issues
+- Use valid pytz timezone strings
+- List valid timezones: `pytz.all_timezones`
+- UTC is the default
+
+## 🔄 Workflow
+
+```
+Bot starts
+        ↓
+Load config.json
+        ↓
+Load language file
+        ↓
+Set timezone
+        ↓
+Wait for commands
+        ↓
+On scheduled time:
+  Check day_status for today
+  If "ON":
+    Send reminder to all workers
+    Use reminder text from config
+        ↓
+Process user commands:
+  /start → Show menu
+  /admin → Admin menu (if admin)
+  /set_text → Update reminder text
+  /day_on → Enable day
+  /set_time → Set time for day
+  /lang → Change language
+        ↓
+Save changes to config.json
+```
+
+## 📊 Configuration Example
+
+**config.json for daily 9 AM reminder:**
+```json
+{
+  "day_status": {
+    "day_1": "ON",   // Monday
+    "day_2": "ON",   // Tuesday
+    "day_3": "ON",   // Wednesday
+    "day_4": "ON",   // Thursday
+    "day_5": "ON",   // Friday
+    "day_6": "OFF",  // Saturday
+    "day_7": "OFF"   // Sunday
+  },
+  "day_time": {
+    "day_1": "09:00:00",
+    "day_2": "09:00:00",
+    "day_3": "09:00:00",
+    "day_4": "09:00:00",
+    "day_5": "09:00:00",
+    "day_6": "09:00:00",
+    "day_7": "09:00:00"
+  },
+  "workers": ["@john", "@jane"],
+  "text": "Check your emails!",
+  "admins": ["@admin_user"],
+  "timezone": "UTC"
+}
+```
+
+## 📄 License
+
+MIT License - See LICENSE file
+
+## 👨‍💻 Author
+
+**w1cee** — Backend Developer | Systems Builder  
+💬 [GitHub](https://github.com/w1cee)
+
+---
+
+**Building things that work while I sleep** ⏰
